@@ -67,19 +67,18 @@ length(intersect(predicted_columns(tm), encodings['x'])) == encoding_size
 
 This repository also contains jupyter notebooks that document our exploration of the temporal memory algorithm. They are as follows:
 
-1. [LearningJuliaHTM.ipynb](Scripts/LearningJuliaHTM.ipynb) Exploring the Julia package [HierarchicalTemporalMemory](https://github.com/Oblynx/HierarchicalTemporalMemory.jl) which was hard to use because its unicode variable names didn't render.
-1. [GhosalHTM.ipynb](Scripts/GhosalHTM.ipynb) Learning about Dipak Ghosal's Python implementation of the temporal memory algorithm.
-1. [TMAsSimpleRandomProj.ipynb](Scripts/TMAsSimpleRandomProj.ipynb) Investigating the idea that the temporal memory algorithm is essentially a random projection with optimized decision thresholds.
-1. [TMThreshExplore.ipynb](Scripts/TMThreshExplore.ipynb) Understanding the distributions and how the temporal memory network might perform a random projection.
-1. [TMThreshModel.ipynb](Scripts/TMThreshModel.ipynb) Creation of a model that focuses directly on random projection and attempts to optimize the threshold rather than the synapse permanences.
-1. [TMThresholdOpt.ipynb](Scripts/TMThresholdOpt.ipynb) Optimizing the thresholding algorithm for maximum speed.
-1. [TMThreshTrain.ipynb](Scripts/TMThreshTrain.ipynb) Training the threshold algorithm and failing.
-1. [TMThreshTrainLonger.ipynb](Scripts/TMThreshTrainLonger.ipynb) Training the threshold algorithm for longer and still failing. Deciding that this algorithm doesn't work.
-1. [JuliaHTMRunTests.ipynb](Scripts/JuliaHTMRunTests.ipynb) Attempting to understand [HierarchicalTemporalMemory](https://github.com/Oblynx/HierarchicalTemporalMemory.jl) by taking apart and running its test suite. 
+1. [LearningJuliaHTM.ipynb](Notebooks/LearningJuliaHTM.ipynb) Exploring the Julia package [HierarchicalTemporalMemory](https://github.com/Oblynx/HierarchicalTemporalMemory.jl) which was hard to use because its unicode variable names didn't render.
+1. [GhosalHTM.ipynb](Notebooks/GhosalHTM.ipynb) Learning about Dipak Ghosal's Python implementation of the temporal memory algorithm.
+1. [TMAsSimpleRandomProj.ipynb](Notebooks/TMAsSimpleRandomProj.ipynb) Investigating the idea that the temporal memory algorithm is essentially a random projection with optimized decision thresholds.
+1. [TMThreshExplore.ipynb](Notebooks/TMThreshExplore.ipynb) Understanding the distributions and how the temporal memory network might perform a random projection.
+1. [TMThreshModel.ipynb](Notebooks/TMThreshModel.ipynb) Creation of a model that focuses directly on random projection and attempts to optimize the threshold rather than the synapse permanences.
+1. [TMThresholdOpt.ipynb](Notebooks/TMThresholdOpt.ipynb) Optimizing the thresholding algorithm for maximum speed.
+1. [TMThreshTrain.ipynb](Notebooks/TMThreshTrain.ipynb) Training the threshold algorithm and failing.
+1. [TMThreshTrainLonger.ipynb](Notebooks/TMThreshTrainLonger.ipynb) Training the threshold algorithm for longer and still failing. Deciding that this algorithm doesn't work.
+1. [JuliaHTMRunTests.ipynb](Notebooks/JuliaHTMRunTests.ipynb) Attempting to understand [HierarchicalTemporalMemory](https://github.com/Oblynx/HierarchicalTemporalMemory.jl) by taking apart and running its test suite. 
 
-1. [JuliaNumentaTemporalMemory.ipynb](Scripts/JuliaNumentaTemporalMemory.ipynb) Implementing the Nupic pseudo code myself.
-1. [GhosalHTMExperiments.ipynb](Scripts/GhosalHTMExperiments.ipynb) Learning how Dipak Ghosal's code performs synapse reconnections.
-1. [HigherOrderSeq.ipynb](Scripts/HigherOrderSeq.ipynb) Studying how the temporal memory algorithm captures context.
-1. [HigherOrderSeq2.ipynb](Scripts/HigherOrderSeq2.ipynb) Hypothesizing that the temporal memory model is like a massive markov chain with many possible states corresponding to each character.
-1. [RepresentationCapacity.ipynb](Scripts/RepresentationCapacity.ipynb) Trying to find the limit to the number of representation for a character that the algorithm can store
-. Did not converge and the number of synapses continued to grow throughout training.
+1. [JuliaNumentaTemporalMemory.ipynb](Notebooks/JuliaNumentaTemporalMemory.ipynb) Implementing the Nupic pseudo code myself.
+1. [GhosalHTMExperiments.ipynb](Notebooks/GhosalHTMExperiments.ipynb) Learning how Dipak Ghosal's code performs synapse reconnections.
+1. [HigherOrderSeq.ipynb](Notebooks/HigherOrderSeq.ipynb) Studying how the temporal memory algorithm captures context.
+1. [HigherOrderSeq2.ipynb](Notebooks/HigherOrderSeq2.ipynb) Hypothesizing that the temporal memory model is like a massive markov chain with many possible states corresponding to each character.
+1. [RepresentationCapacity.ipynb](Notebooks/RepresentationCapacity.ipynb) Trying to find the limit to the number of representation for a character that the algorithm can store. Did not converge and the number of synapses continued to grow throughout training.
