@@ -1,1 +1,1 @@
-# HTM Blueprint:
+# TemporalMemoryResearch
