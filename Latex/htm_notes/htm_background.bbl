@@ -1,0 +1,78 @@
+\begin{thebibliography}{10}
+
+\bibitem{Axel2018}
+Richard axel.
+\newblock {\em Neuron}, 99(6):1110--1112, 2018.
+
+\bibitem{Britodasilva2019}
+Leonardo~Enzo {Brito da Silva}, Islam Elnabarawy, and Donald~C. Wunsch.
+\newblock A survey of adaptive resonance theory neural network models for
+  engineering applications.
+\newblock {\em Neural Networks}, 120:167--203, 2019.
+\newblock special Issue in Honor of the 80th Birthday of Stephen Grossberg.
+
+\bibitem{Cui2016b}
+Yuwei Cui, Subutai Ahmad, and Jeff Hawkins.
+\newblock Continuous online sequence learning with an unsupervised neural
+  network model.
+\newblock {\em Neural Computation}, 28(11):2474–2504, nov 2016.
+
+\bibitem{Cui2017}
+Yuwei Cui, Subutai Ahmad, and Jeff Hawkins.
+\newblock The htm spatial pooler—a neocortical algorithm for online sparse
+  distributed coding.
+\newblock {\em Frontiers in Computational Neuroscience}, 11, 2017.
+
+\bibitem{Cui2016}
+Yuwei Cui, Chetan Surpur, Subutai Ahmad, and Jeff Hawkins.
+\newblock A comparative study of htm and other neural network models for online
+  sequence learning with streaming data.
+\newblock In {\em 2016 International Joint Conference on Neural Networks},
+  pages 1530--1538, 07 2016.
+
+\bibitem{George2006}
+Dileep George.
+\newblock Hierarchical temporal memory: Theory and applications.
+\newblock In {\em 2006 International Conference of the IEEE Engineering in
+  Medicine and Biology Society}, volume Supplement, pages 6643--6643, 2006.
+
+\bibitem{George2021}
+Dileep George, Rajeev~V. Rikhye, Nishad Gothoskar, J.~Swaroop Guntupalli,
+  Antoine Dedieu, and Miguel L{\'a}zaro-Gredilla.
+\newblock Clone-structured graph representations enable flexible learning and
+  vicarious evaluation of cognitive maps.
+\newblock {\em Nature Communications}, 12(1):2392, 2021.
+
+\bibitem{Lewis2021}
+Marcus Lewis.
+\newblock Hippocampal spatial mapping as fast graph learning, 2021.
+
+\bibitem{Maass2019}
+Wolfgang Maass, Christos~H. Papadimitriou, Santosh Vempala, and Robert
+  Legenstein.
+\newblock {\em Brain Computation: A Computer Science Perspective}, pages
+  184--199.
+\newblock Springer International Publishing, Cham, 2019.
+
+\bibitem{Mackenzie2019}
+Jonathan Mackenzie, John~F. Roddick, and Rocco Zito.
+\newblock An evaluation of htm and lstm for short-term arterial traffic flow
+  prediction.
+\newblock {\em IEEE Transactions on Intelligent Transportation Systems},
+  20(5):1847--1857, 2019.
+
+\bibitem{Struye2020}
+Jakob Struye and Steven Latré.
+\newblock Hierarchical temporal memory and recurrent neural networks for time
+  series prediction: An empirical validation and reduction to multilayer
+  perceptrons.
+\newblock {\em Neurocomputing}, 396:291--301, 2020.
+
+\bibitem{Wu2021}
+Renjie Wu and Eamonn Keogh.
+\newblock Current time series anomaly detection benchmarks are flawed and are
+  creating the illusion of progress.
+\newblock {\em IEEE Transactions on Knowledge and Data Engineering}, pages
+  1--1, 2021.
+
+\end{thebibliography}

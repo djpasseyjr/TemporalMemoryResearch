@@ -1,0 +1,54 @@
+
+\documentclass{article}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+ 
+\title{Towards an Deeper Understanding of the Hierarchical Temporal Memory Algorithm}
+\author{DJ Passey}
+\maketitle
+
+\section*{History of Hierarchical Temporal Memory}
+HTM, or Hierarchical Temporal Memory is an artificial intelligence architecture rooted in neuroscience and justified by biological plausibility. It is the outgrowth of funding by Jeff Hawkins, the former CEO of Palm Pilot and computational techniques developed by the research scientists Dileep George and Subatai Ahmad. In 2004, Jeff Hawkins published a book titled, "On Intelligence: How a New Understanding of the Brain Will Lead to the Creation of Truly Intelligent Machines". He founded the Redwood Institute for Neuroscience in 2005. The institute hired Dileep George, a computational scientist, and one year later in 2006, George gave a presentation titled "Hierarchical Temporal Memory: Theory and Applications" \cite{George2006}. Three years later, in collaboration with their new company Numenta, George and Hawkins published a comprehensive theoretical paper: "Towards a Mathematical Theory of Cortical Micro-circuits" \cite{George2009}. This paper describes a tree-like structure of nodes. Each node contains multiple Markov chains of which one is chosen to be "active". The state of the parent nodes is determined by which 
+Markov chains are active in each child node. The model is optimized via  Bayesian belief propagation so that probabilities of a particular Markov chain can be determined by the state of a node and it's siblings. 
+
+Dileep George left Numenta in 2010. This \textit{\href{https://news.ycombinator.com/item?id=7443016}{YCombinator thread}} suggests that George left due to a difference in technical direction. This \href{https://www.kurzweilai.net/vicarious-announces-15-million-funding-for-ai-software-based-on-the-brain}{\textit{article}} quotes George saying ``HTM was an important effort, much like Poggio’s foundational HMAX model, HTM had the right high level goals. But, when you dig into the algorithm level, you’ll see that HTM implementations hadn’t solved the problems of information representation in the hierarchy."
+
+With the departure of George, leadership of the Numenta Research team switched to Subatai Ahmad and in 2016-2017, the company published a series of papers on their new HTM algorithm \cite{Cui2016b, Cui2016, Cui2017, Hawkins2016}.
+
+This algorithm relies heavily on sparse distributed representations, a high dimensional method for encoding data with many useful properties \cite{Kanerva1988}. The new hierarchical temporal memory algorithm divides the architecture into four components, an encoder component, a spacial pooler component, a temporal memory component and a machine learning classifier. The first two components of the HTM architecture focus on translating raw data into an appropriate sparse high dimensional representation while the temporal memory component and classifier do the work of prediction.
+
+This algorithm showed promise, out performing LSTM on time series prediction and showing excellent abilities at anomaly detection.
+
+It was also a departure from the theoretical work completed by Dileep George in 2009. True to it's name, the temporal memory component no longer leverages a hierarchy of features at different granularity. Additionally, the temporal memory algorithm is optimized via a number of heuristic rules and does not rely on Bayesian optimization. 
+
+\section*{How does HTM compare to Deep Learning?}
+
+\subsection*{Time Series Prediction}
+There are a few papers compare HTM to deep learning algorithms directly \cite{Struye2020, Mackenzie2019, Cui2016, Cui2016b}. Of these, \cite{Struye2020} is the most comprehensive. It suggests that it is the first paper to make such a comparison, and it shows definitively that with proper hyper parameter optimization, LSTM outperforms HTM, both in terms of accuracy \textit{and speed}. It goes further than this, by using the same datasets as the original Numenta papers and showing that with proper hyper parameters, LSTM actually outperforms HTM \cite{Cui2016, Cui2016b}.
+
+However, the future of HTM is not all bleak. The last section of \cite{Struye2020} describes training the LSTM and HTM models built for the Numenta taxicab dataset (without changing any hyper parameters) on a non stationary dataset with a global trend. HTM was able to adapt to this dataset without any hyperparameter adjustment. With no hyper parameter optimization, LSTM failed. While this is more of a case study, it does illustrate that HTM is fundamentally different from LSTM and offers some comparative advantages.
+
+\subsection*{Anomaly Detection}
+
+Struye et. al. claims that HTM has proved itself at anomaly detection \cite{Struye2020}. Numenta has published a \textit{\href{https://github.com/numenta/NAB}{a repository}} for benchmarking real time streaming anomaly detection. It is assumed that the adaptive nature of HTM makes it well suited for this sort of problem. However futher investigation calls this claim into question. This is well illustrated by the title of a recent paper: "Current Time Series Anomaly Detection Benchmarks are Flawed and are Creating the Illusion of Progress" \cite{Wu2021}. The paper examines many anomaly detection time-series datasets including the Numenta benchmark and finds that they contain mislabeled data, many trivial problems, too many anomalies and a run to failure bias (most anomalies occur at the end). The paper uses one of the Numenta benchmark datasets as an illustration of a poor choice. The paper goes into depth on the use of anomalies in the Numenta taxi driver dataset and shows the existence of multiple false positives and false negatives in the labels. 
+
+Data hygine notwithstanding, HTM was beaten by another brain inspired algorithm called Adaptive Resonance on it's own benchmark \cite{Britodasilva2019}.
+
+\section*{Why Study Hierarchical Temporal Memory?}
+
+The question remains, if HTM is less accurate than other techniques, what is the value of studying HTM? The answer is as follows.
+
+While HTM technically loses to LSTM in terms of speed and accuracy, it is not far behind. This is remarkable considering that the optimization step of HTM relies on heuristic rules that are not well understood. Additionally, LSTM optimization has been supported and explored by a massive army of machine learning engineers while HTM has seen no such investment.
+
+In our work studying the HTM algorithm, we focused on uncovering the essential mechanisms of ther temporal memory algorithm: What is it \textit{exactly} that leads to the success of the this approach?
+
+In focusing on this question we uncovered theoretical concepts that were \textit{fundamentally different} than the theoretical tools applied by standard deep learning approaches.
+
+Our hope is that by reducing the key mechanisms of HTM to a theoretical framework, we can leverage existing theory from sparse distributed memory, branching processes and other tools to converge on clearer optimization pathways, lighter weight models and the potential to augment current machine learning techniques with fresh tools. Additionally,  HTM appears to have a comparative advantage when it comes to adaptability and resistance to certain types of noise \cite{Cui2016b, Cui2017, Cui2016}. It is possible that a deeper investigation of the relevant computational mechanisms will provide a pathway to refine this comparative advantage.
+
+\bibliographystyle{plain}
+\bibliography{citations}
+\end{document}

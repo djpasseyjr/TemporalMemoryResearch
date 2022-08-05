@@ -1,2 +1,1 @@
-# Jupic
-Julia implementation of the Nupic algorithm
+# HTM Blueprint:

@@ -1,0 +1,37 @@
+\documentclass[12pt]{report}
+\usepackage{blkarray}
+\usepackage{amsmath}
+
+\begin{document}
+
+\[
+\begin{blockarray}{cccccc}
+& a & b & c & d & e \\
+\begin{block}{c (ccccc)}
+  1 & 1 & 1 & 1 & 1 & f \\
+  0 & 1 & 0 & 0 & 1 & g \\
+  0 & 0 & 1 & 0 & 1 & h \\
+  0 & 0 & 0 & 1 & 1 & i \\
+  0 & 0 & 0 & 0 & 1 & j \\
+\end{block}
+\end{blockarray}
+\]
+
+\[
+\begin{blockarray}{cccccccccc}
+& \text{clouds}_1 & \text{clouds}_2 & \cdots & \text{rain}_1 & \text{rain}_2 & \cdots & \text{sun}_1 & \text{sun}_2 & \cdots \\
+\begin{block}{c(ccccccccc)}
+\text{clouds}_1 & 0 & 0 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\text{clouds}_2 & 0 & 0 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+\text{rain}_1 & 0 & 0 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\text{rain}_2 & 0 & 1 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+\text{sun}_1 & 0 & 0 & \cdots & 0 & 1 & \cdots & 0 & 0 & \cdots \\
+\text{sun}_2 & 1 & 0 & \cdots & 0 & 0 & \cdots & 1 & 0 & \cdots \\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+\end{block}
+\end{blockarray}
+ \]
+
+\end{document}

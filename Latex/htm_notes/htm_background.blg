@@ -1,0 +1,50 @@
+This is BibTeX, Version 0.99d (TeX Live 2019)
+Capacity: max_strings=100000, hash_size=100000, hash_prime=85009
+The top-level auxiliary file: htm_background.aux
+The style file: plain.bst
+Database file #1: citations.bib
+Warning--to sort, need author or key in Axel2018
+Warning--empty author in Axel2018
+Warning--can't use both author and editor fields in Maass2019
+You've used 12 entries,
+            2118 wiz_defined-function locations,
+            589 strings with 6474 characters,
+and the built_in function-call counts, 4466 in all, are:
+= -- 432
+> -- 192
+< -- 5
++ -- 80
+- -- 64
+* -- 322
+:= -- 706
+add.period$ -- 35
+call.type$ -- 12
+change.case$ -- 67
+chr.to.int$ -- 0
+cite$ -- 15
+duplicate$ -- 171
+empty$ -- 358
+format.name$ -- 64
+if$ -- 963
+int.to.chr$ -- 0
+int.to.str$ -- 12
+missing$ -- 12
+newline$ -- 62
+num.names$ -- 22
+pop$ -- 67
+preamble$ -- 1
+purify$ -- 56
+quote$ -- 0
+skip$ -- 137
+stack$ -- 0
+substring$ -- 321
+swap$ -- 52
+text.length$ -- 5
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 46
+warning$ -- 3
+while$ -- 37
+width$ -- 14
+write$ -- 133
+(There were 3 warnings)
