@@ -563,7 +563,7 @@ function burst_column!(tm, column, matching_segs, t)
 
         if tm.ps.learning_enabled
             # Create a new segment
-            new_segment = grow_segment!(tm, winner_cell)
+            new_segment = grow_segment!(tm, winner_cell, tm.t)
             # Connect the segment to all previous winner cells.
             n_winners = length(tm.winner_cells[t - 1])
             num_new_synapses = min(tm.ps.max_new_synapses, n_winners)
@@ -723,24 +723,22 @@ function adapt_segment!(tm, segment, t::Int)
 end
 
 """
-    grow_segment!(tm, cell)
+    grow_segment!(tm, cell, t::Int)
 
 Creates a segment and adds it to `cell`. As far as I can tell, when Nupic
 adds a new segment, it starts off with zero synapses.
 Compare to Nupic [here](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L665)
 and [here](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/connections.py#L260).
 """
-function grow_segment!(tm, cell)
-    # TODO: Test this
-
+function grow_segment!(tm, cell, t::Int)
     # Enforce max max_segments_per_cell
     while length(cell.segments) >= tm.ps.max_segments_per_cell
-        least_recently_used_idx = minimum(x -> x.last_used_iter, cell.segments)
-        delete_segment!(tm, cell.segments[least_recently_used_idx])
+        least_recently_used_seg = argmin(x -> x.last_used_iter, cell.segments)
+        delete_segment!(tm, least_recently_used_seg)
     end
 
     # Create a new segment and mark it last used on the current iteration.
-    seg = Segment(cell, tm.t)
+    seg = Segment(cell, t)
     # Add segment to model
     push!(tm.segments, seg)
     push!(cell.segments, seg)
@@ -767,8 +765,7 @@ onto `segment`. Does not create duplicate synapses.
 Adapted from Nupic [_growSynapses](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L759)
 """
 function grow_synapses!(tm, segment, num_new_synapses, t)
-    # TODO: Test overrun
-    
+    # Collect presynapsic cells    
     existing_presyn_cells = Set([s.presynaptic_cell for s in segment.synapses])
     # Don't allow multiple synapses to the same winner cell
     candidates = Set(

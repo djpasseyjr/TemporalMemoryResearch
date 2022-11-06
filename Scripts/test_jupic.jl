@@ -543,9 +543,24 @@ end
     @testset "grow_segment!()" begin
         cell = Cell()
         init_num_segs = length(tm.segments)
-        grow_segment!(tm, cell)
+        grow_segment!(tm, cell, tm.t)
         @test length(tm.segments) == init_num_segs + 1
         @test length(cell.segments) == 1
+
+        # Change the last used iter for all segments except
+        # the first segment to 100
+        cell = tm.cells[1]
+        seg_array = [s for s in cell.segments]
+        for seg in seg_array[2:end]
+            seg.last_used_iter = 100
+        end
+        remove_seg = seg_array[1]
+        tm.ps.max_segments_per_cell = init_segs
+        # Check that least recently used segment is removed.
+        grow_segment!(tm, cell, 100)
+        @test remove_seg ∉ cell.segments
+        @test length(cell.segments) == tm.ps.max_segments_per_cell
+
     end
 
     @testset "delete_segment!()" begin
