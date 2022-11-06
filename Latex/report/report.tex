@@ -1,12 +1,14 @@
 
 \documentclass{article}
+\usepackage{blkarray}
 \usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{amssymb}
-
+\usepackage{graphicx}
+\usepackage{algorithm2e} 
 \begin{document}
  
-\title{Towards an Deeper Understanding of the Hierarchical Temporal Memory Algorithm}
+\title{Towards a Deeper Understanding of the Hierarchical Temporal Memory Algorithm}
 \author{DJ Passey}
 \maketitle
 
@@ -18,7 +20,7 @@ Dileep George left Numenta in 2010. This \textit{\href{https://news.ycombinator.
 
 With the departure of George, leadership of the Numenta Research team switched to Subatai Ahmad and in 2016-2017, the company published a series of papers on their new HTM algorithm \cite{Cui2016b, Cui2016, Cui2017, Hawkins2016}.
 
-This algorithm relies heavily on sparse distributed representations, a high dimensional method for encoding data with many useful properties \cite{Kanerva1988}. The new hierarchical temporal memory algorithm divides the architecture into four components, an encoder component, a spacial pooler component, a temporal memory component and a machine learning classifier. The first two components of the HTM architecture focus on translating raw data into an appropriate sparse high dimensional representation while the temporal memory component and classifier do the work of prediction.
+This algorithm relies heavily on sparse distributed representations, a high dimensional method for encoding data with many useful properties \cite{Kanerva2009}. The new hierarchical temporal memory algorithm divides the architecture into four components, an encoder component, a spacial pooler component, a temporal memory component and a machine learning classifier. The first two components of the HTM architecture focus on translating raw data into an appropriate sparse high dimensional representation while the temporal memory component and classifier do the work of prediction.
 
 This algorithm showed promise, out performing LSTM on time series prediction and showing excellent abilities at anomaly detection.
 
@@ -48,6 +50,127 @@ In our work studying the HTM algorithm, we focused on uncovering the essential m
 In focusing on this question we uncovered theoretical concepts that were \textit{fundamentally different} than the theoretical tools applied by standard deep learning approaches.
 
 Our hope is that by reducing the key mechanisms of HTM to a theoretical framework, we can leverage existing theory from sparse distributed memory, branching processes and other tools to converge on clearer optimization pathways, lighter weight models and the potential to augment current machine learning techniques with fresh tools. Additionally,  HTM appears to have a comparative advantage when it comes to adaptability and resistance to certain types of noise \cite{Cui2016b, Cui2017, Cui2016}. It is possible that a deeper investigation of the relevant computational mechanisms will provide a pathway to refine this comparative advantage.
+
+\section*{Results}
+
+The main results of this investigation were as follows. First, a Julia implementation of the Nupic temporal memory algorithm, an exploration to determine if the main mechanism behind the temporal memory algorithm was random projection, and a study on higher order representation and synapse creation.
+
+All of the resulting code is stored in the repository \href{https://github.com/djpasseyjr/TemporalMemoryResearch}{\textit{here}}. See the README file for a more granular description of each phase of investigation.
+
+In this report we will focus on the most intriguing finding from our investigation. This is the idea that the temporal memory algorithm is essentially a Markov chain, but it is vanshingly  sparse and near infinite dimensional. Instead of each state representing one event, multiple states correspond to the same event occuring in different contexts. For example, the classical Markov chain example is weather.
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale=1]{markov_chain}
+\caption{A simple Markov chain modeling weather as transitions between three states. Weather states that transition between each other with varying probability. It is immediately clear that this is too simple for weather, and that more that the current state of the world is needed to predict the future. For example, a third day of sun after two previous sunny days may be more likely than a second day of sun after one sunny day.}
+\end{figure}
+
+Our examination of the temporal memory algorithm led us to believe that it makes  multiple representations for each state in order to capture context. We can extend our weather example to help explain this idea. Let's expand the dimensions of our Markov transition matrix so that there are many states corresponding to clouds, rain and sun. We will call these $\text{clouds}_1$, $\text{clouds}_2$, ..., $\text{clouds}_n$, $\text{rain}_1$, $\text{rain}_2$, ..., $\text{rain}_n$, and $\text{sun}_1$, $\text{sun}_2$, ..., $\text{sun}_n$. Each of these states correspond to clouds, rain or sun appearing in a different context. For example $\text{sun}_1$ might be used to represent a sunny data following one previous sunny day and $\text{sun}_2$ might be used to represent a sunny day preceded by two sunny days.
+
+However, for real problems, where the number of states is large, this model would take up a large amount of memory and might memorize the training data and not be able to generalize.
+
+\begin{figure}[h]
+\[
+\begin{blockarray}{cccccccccc}
+& \text{clouds}_1 & \text{clouds}_2 & \cdots & \text{rain}_1 & \text{rain}_2 & \cdots & \text{sun}_1 & \text{sun}_2 & \cdots \\
+\begin{block}{c(ccccccccc)}
+\text{clouds}_1 & 0 & 0 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\text{clouds}_2 & 0 & 0 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\vdots & \vdots & \vdots & \ddots & \vdots & \vdots & \ddots & \vdots & \vdots & \ddots \\
+\text{rain}_1 & 0 & 0 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\text{rain}_2 & 0 & 1 & \cdots & 0 & 0 & \cdots & 0 & 0 & \cdots \\
+\vdots & \vdots & \vdots & \ddots & \vdots & \vdots & \ddots & \vdots & \vdots & \ddots \\
+\text{sun}_1 & 0 & 0 & \cdots & 0 & 1 & \cdots & 0 & 0 & \cdots \\
+\text{sun}_2 & 1 & 0 & \cdots & 0 & 0 & \cdots & 1 & 0 & \cdots \\
+\vdots & \vdots & \vdots & \ddots & \vdots & \vdots & \ddots & \vdots & \vdots & \ddots \\
+\end{block}
+\end{blockarray}
+\]
+\caption{A high dimensional sparse Markov chain with multiple representations for each state. The idea here is that $\text{clouds}_1$ represents the presence of clouds today, when they were preceded by rain yesterday. The state $\text{clouds}_2$ might represent clouds today preceded by two days of rain. We hypothesize that the temporal memory algorithm leverages a strategy like this one for time series prediction.
+}
+\end{figure}
+
+\section*{How does the temporal memory algorithm accomplish this?}
+
+One can conceptualize the temporal memory model as a grid of cells. There are many columns and several rows. The original Numenta paper uses 2048 columns and 32 rows. Each sequence is encoded as a random subset of columns. (Let's use 16 for this example.)
+
+Initially, the algorithm starts with no synapses associating the cells in the grid with each other. To train the model, it is exposed to the training sequence by activating columns corresponding to the encoding of the characters in the sequence.
+
+When a column is activated, one cell from the column is chosen as a "winner cell". This is the cell that is the closest to activating in response to the previous input, but initially there are no synapses and the cell is chosen randomly.
+
+In the temporal memory algorithm, a column is considered "predictive" if \textit{any} of the cells in that column are in a predictive state. Therefore, there are many different ways that a character can be correctly predicted by the algorithm. However, the specific collection of cells or representation used to predict the column carry with them information about past states, because that collection of cells activates only in response to specific previous patterns.
+
+\section*{Synapse creation in the temporal memory algorithm}
+
+The original temporal memory algorithm paper did not have a strong focus on synapse formation, and states that synapses are initialized randomly with a fixed density \cite{Hawkins2016}. However, the actual Numenta algorithm initializes synapses on the fly. The mechanism for creating synapses is intricate and the consequences of the choices Numenta made are not clear.
+\newline
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\textbf{Temporal Memory Synapse Creation}
+
+Temporal memory algorithm receives input.
+
+\For{each column}{
+Check if the column is in a predictive state\;
+Check if the prediction is correct\;
+
+\If{False positive column}{
+Punish synapse permanences \;
+No synapse synapse formation occurs\;
+Return\;
+}
+
+\If{False negative column}{
+Identify the cell that was closest to activating, randomly if no cells were close\;
+\If{None of the cells segments were close to activating}{
+Make one new segment on that cell and form synapses to all previous winner cells \;
+}
+\Else{pick the segment closest to activating \;
+add synapses to some previous winner cells but don't break existing connections to previously active cells. \;
+}
+Return;
+}
+
+\If{True negative column}{
+Reduce permanence on segments that were close to activating\;
+No changes to synapses\;
+Return\;
+}
+
+\If{True Positive column}{
+Increase permanence values\;
+Form additional synapses but don't undo existing active synapses\;
+Return\;
+}
+
+}
+\caption{Synapse creation in the temporal memory algorithm.}
+\end{algorithm}
+
+\subsection*{Notes on the algorithm}
+A key piece of this process to notice is that new synapses appear only in the event of a false negative. Reenforcement happens during true positive, but this assumes that the needed synapses were in place already.
+
+The creation of synapses only during false negatives represents an ``as needed" approach. This way, the algorithm builds synapses when it is not able to make a correct prediction.
+
+However, another detail is that if synapses exist, and they would have been active if their permanence values were higher, the algorithm does not add new synapses and instead waits until their permanence values are increased to the proper value. This prevents the algorithm from growing more synapses than necessary.
+
+\section*{Open questions}  
+
+The temporal memory algorithm, in connection with the encoder, spatial pooler and a classifier is able to solve deep learning problems like the MNIST dataset of hand written digits. It is clear that there is some potential.
+
+We seek a better understanding of how the temporal memory algorithm is able to produce correct predictions.
+
+We have identified several questions of interest.
+
+\begin{list}{•}{•}
+\item To what extend does the high dimensional markov chain explain the success of the temporal memory algorithm?
+\item What are the limitations of the algorithm. How many different representations can is realistically remember? How long can it predict before a cycle appears? To what extend can it capture branching processes?
+\item What is the impact of initial conditions. Are stop and start initializations needed?
+\item Given a clearer theoretical understanding of the algorithm, how can it be optimized for better performance?
+\end{list}
+
+We look forward to gaining a deeper understanding and believe this could lead to advances that would benefit many other areas of machine learning.
 
 \bibliographystyle{plain}
 \bibliography{citations}
