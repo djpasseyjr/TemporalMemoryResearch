@@ -7,27 +7,35 @@ include(string(@__DIR__, "/jupic.jl"))
 num_cols = 10
 cells_per_col = 5
 init_segs = 4
-tm = TempMem(num_cols, cells_per_col, initial_segments_per_cell=init_segs)
+init_syns = 50
+tm = TempMem(num_cols, cells_per_col)
+
 
 @testset "Constructors" begin
     num_cols = 10
     cells_per_col = 5
     init_segs = 4
-    tm = TempMem(num_cols, cells_per_col, initial_segments_per_cell=init_segs)
-    
+    init_syns = 5
+    # Blank temporal memory struct.
+    tm = TempMem(num_cols, cells_per_col)
+
     @test length(tm.columns) == num_cols
-    
     cells = [c for c in tm.columns[1].cells]
     @test length(cells) == cells_per_col
-    
+    segs = [s for s in cells[1].segments]
+    @test length(segs) == 0
+
+    # Add random connections to the `tm`.
+    grow_random_connections!(tm, init_segs, init_syns)
+    @test length(tm.columns) == num_cols
+    cells = [c for c in tm.columns[1].cells]
+    @test length(cells) == cells_per_col
     segs = [s for s in cells[1].segments]
     @test length(segs) == init_segs
     @test segs[1].cell == cells[1]
-
     syns = [s for s in segs[1].synapses]
-    @test length(syns) == tm.ps.synapse_sample_size
+    @test length(syns) == init_syns
     @test tm.ps.activation_threshold == 15
-    @test tm.ps.initial_segments_per_cell == 4
 end
 
 @testset "Temporal Memory Algorithm Core" begin
@@ -36,18 +44,19 @@ end
         num_cols = 6
         cells_per_col = 2
         init_segs = 1
+        init_syns = 0
 
         tm = TempMem(
             num_cols, 
             cells_per_col,
             activation_threshold=2,
             learning_threshold=1,
-            initial_segments_per_cell=1,
-            synapse_sample_size=0,
+            max_new_synapses = 2,
             initial_permanence=1.0,
             learning_enabled=true
         )
-        tm.ps.synapse_sample_size = 2
+        grow_random_connections!(tm, init_segs, init_syns)
+
         # Make sure that each cell has one segment and each segment
         # has zero synapses
         for cell in tm.cells
@@ -57,36 +66,86 @@ end
             end
         end
 
-        # One previous winner cell
-        push!(tm.winner_cells[tm.t], tm.cells[end])
         # Assign previous active and matching segments. These were chosen
-        # so that every piece of the control flow is explored
+        # so that every piece of the control flow is explored.
+        # Since each cell has only one segment, the segment index corresponds
+        # To the cell index.
         matching_segs = tm.segments[[1, 7, 9, 11]]
-        active_segs = matching_segs[[1, 3]]
-        tm.active_segments[tm.t] = Set(active_segs)
         tm.matching_segments[tm.t] = Set(matching_segs)
+        active_segs = tm.segments[[1, 9]]
+        tm.active_segments[tm.t] = Set(active_segs)
         
+        # One previous winner cell, cell 12
+        push!(tm.winner_cells[tm.t], tm.cells[end])
         
         # Add a synapse from cell 4 to cell 11
         push!(matching_segs[end].synapses, Synapse(1.0, tm.cells[4]))
-        # Add a segment to cell 3
+
+        # Add a segment to cell 3 so that cell 4 will be chosen
+        # as the least used cell in column 2
         seg = Segment()
         push!(tm.cells[3].segments, seg)
         push!(tm.segments, seg)
 
+        # Currently, the algorithm is predicting columns 1 (via cell 1) and 5 
+        # (via cell 9). We activate 1, 2 and 6 so that 1 is a true positive, 
+        # 2 is a false negative with no active segments, 6 is a false negative
+        # with an active segment and 5 is a false 
         active_cols = [1, 2, 6]
-        # Call function
-        update!(tm, active_cols)
-        # Run tests
-        @test length(symdiff(tm.active_cells[tm.t], tm.cells[[1, 3, 4, 11, 12]])) == 0
-        @test length(symdiff(tm.winner_cells[tm.t], tm.cells[[1, 4, 11]])) == 0
-        if length(tm.active_segments[tm.t]) == 1
-            @test length(symdiff(tm.active_segments[tm.t], [tm.segments[11]])) == 0
-        else
-            @test length(symdiff(tm.active_segments[tm.t], tm.segments[[11, end]])) == 0
-        end
-        @test length(symdiff(tm.matching_segments[tm.t], tm.segments[[1, 11, end]])) == 0
 
+        # Call function we want to test. 
+        update!(tm, active_cols)
+        # What should happen, is the following:
+        #
+        # (1) Column 1 was correctly predicted. Each active segment in this 
+        # column has its cell added to the active and winner cell sets and also
+        # gets permanence updates. Additionally, all active segments gain 
+        # additional synapses to previous winner cells. That means segment 1 
+        # would gain a synapse (12 -> 1). However, because segment 1 has no 
+        # synapses, it is deleted by the algorithm. Cell 1 is added to the 
+        # list of winner cells and to the list of active cells.
+        #
+        # (2) Column 2 was not predicted and no segments in this column were
+        # active or matching. Thus, the least used cell is chosen as a winner
+        # cell and a new segment is added to that cell. By design, the
+        # least used cell is cell 4. The index of this new segment will be 13
+        # because there were 12 segments initially, one was added manually and 
+        # one was removed by `update!`. This new segment should gain one synapse
+        # to the previous winner cell, cell 12. All cells in this column
+        # should be added to the list of active cells.
+        #
+        # (3) Column 5 was predicted incorrectly. All synapses permanences
+        # in column 5 are to be reduced if the synapse was connected to a
+        # previously active cell.
+        #
+        # (4) Column 6 was not predicted but has a matching segment on cell
+        # 11. In response, cell 11 should be chosen as the winner cell and 
+        # its segment should have its synapse permanences increased, if they
+        # were attatched to previous winner cells. (They were not.)
+        # Additionally, this segment should gain a synapse to the previous
+        # winner cell, cell 12 (12 -> 11). Since the original index of 
+        # this segment in `tm.segments` was 11 and one segment was removed, 
+        # its new index is 10. Finally, cells in column 6 should be activated.
+        #
+        # (5) Next, the set of active and matching segments is calculated.
+        # Since one synapse was hard coded (4 -> 11) and two should be
+        # added by `update!` (12 -> 4), (12 -> 11), and the activation 
+        # threshold is two active synapses, this should produce an 
+        # active segment on cell 11 (segment index 10) and matching 
+        # segments on cells 4 and 11 with segment indexes 10 and 13
+        # respectively.
+        
+        # Run tests
+        # Active cells should be at indexes [1, 3, 4, 11, 12]
+        @test length(symdiff(tm.active_cells[tm.t], tm.cells[[1, 3, 4, 11, 12]])) == 0
+        # Winner cells should be at indexes [1, 4, 11]
+        @test length(symdiff(tm.winner_cells[tm.t], tm.cells[[1, 4, 11]])) == 0
+        # Matching segments should be at indexes [10, 13]
+        @test length(symdiff(tm.matching_segments[tm.t], tm.segments[[10, 13]])) == 0
+        # Active segments should be at indexes [10]
+        @test length(symdiff(tm.active_segments[tm.t], tm.segments[[10]])) == 0
+        # Cell 11 should be the only predicted cell
+        @test length(symdiff(predicted_cells(tm), [11])) == 0
     end
 
     @testset "evaluate_active_cols_against_predictions!()" begin
@@ -94,15 +153,15 @@ end
         cells_per_col = 3
         init_segs = 1
         init_syn = 2
-        init_perm = 1.0
+        init_perm = 0.3
         tm = TempMem(
             num_cols, 
             cells_per_col, 
-            initial_segments_per_cell=init_segs,
-            synapse_sample_size=init_syn,
+            max_new_synapses=init_syn,
             initial_permanence=init_perm,
             learning_enabled=true
         )
+        grow_random_connections!(tm, init_segs, init_syn)
         t = 5
         true_pos_col = tm.columns[1]
         false_neg_col = tm.columns[2]
@@ -222,15 +281,15 @@ end
         cells_per_col = 10
         init_segs = 4
         init_syn = 2
-        init_perm = 1.0
+        init_perm = 0.3
         tm = TempMem(
             num_cols, 
             cells_per_col, 
-            initial_segments_per_cell=init_segs,
-            synapse_sample_size=init_syn,
+            max_new_synapses=init_syn,
             initial_permanence=init_perm,
             learning_enabled=true
         )
+        grow_random_connections!(tm, init_segs, init_syn)
 
         # We want one synapse to active_cells[t-1] and one not
         # We want a synapse to get added. So we need a cell in winner_cells[t-1]
@@ -263,17 +322,17 @@ end
         cells_per_col = 10
         init_segs = 4
         init_syn = 2
-        init_perm = 1.0
+        init_perm = 0.3
+        t = 3
         tm = TempMem(
             num_cols, 
             cells_per_col, 
-            initial_segments_per_cell=init_segs,
-            synapse_sample_size=init_syn,
+            max_new_synapses=init_syn,
             initial_permanence=init_perm,
             learning_enabled=true
         )
+        grow_random_connections!(tm, init_segs, init_syn)
 
-        t = 3
         col = tm.columns[1]
         # Target for least used cell, remove one segment
         cell = [c for c in col.cells][1]
@@ -287,9 +346,10 @@ end
         # Test
         num_syns = [length(seg.synapses) for cell in col.cells for seg in cell.segments]
         # Check that no new synapses were formed in the column
-        @test all(num_syns .== init_syn)
+        @test all(num_syns .<= init_syn)
         # Check that best matching cell was added to winners
         @test cell in tm.winner_cells[t]
+        # Check that the best matching cell got an additional segment
         @test length(cell.segments) == init_segs
         @test length(tm.segments) == init_num_segs + 1
         seg = tm.segments[end]
@@ -304,8 +364,25 @@ end
         delete!(tm.winner_cells.data, t-1)
         delete!(tm.active_cells.data, t)
 
+        num_cols = 10
+        cells_per_col = 10
+        init_segs = 4
+        init_syn = 2
+        init_perm = 0.3
+        t = 3
+        tm = TempMem(
+            num_cols, 
+            cells_per_col, 
+            max_new_synapses=init_syn,
+            initial_permanence=init_perm,
+            learning_enabled=true
+        )
+        grow_random_connections!(tm, init_segs, init_syn)
+
+        # Add random synapses to the new segment
+        map(x -> push!(seg.synapses, x), random_synapses(tm, init_syn))
         # Activate one of the presynaptic cells in the new segment
-        pre_syn_cell = [syn.presynaptic_cell for syn in seg.synapses][1]       
+        pre_syn_cell = [syn.presynaptic_cell for syn in seg.synapses][1]     
         push!(tm.winner_cells[t-1], pre_syn_cell)
         push!(tm.active_cells[t-1], pre_syn_cell)
         # Activate one random cell
@@ -321,9 +398,9 @@ end
             if syn.presynaptic_cell == rand_cell
                @test syn.permanence == init_perm
             elseif syn.presynaptic_cell == pre_syn_cell
-                @test syn.permanence == (init_perm - tm.ps.permanence_decrement + tm.ps.permanence_increment)
+                @test syn.permanence == init_perm + tm.ps.permanence_increment
             else
-                @test syn.permanence == (init_perm - 2 * tm.ps.permanence_decrement)
+                @test syn.permanence == init_perm - tm.ps.permanence_decrement
             end
         end
 
@@ -334,14 +411,14 @@ end
         cells_per_col = 10
         init_segs = 4
         init_syn = 2
-        init_perm = 1.0
+        init_perm = 0.3
         tm = TempMem(
             num_cols, 
             cells_per_col, 
-            initial_segments_per_cell=init_segs,
-            synapse_sample_size=init_syn,
+            max_new_synapses=init_syn,
             learning_enabled=false
         )
+        grow_random_connections!(tm, init_segs, init_syn)
 
         t = 2
         active_cells = tm.columns[1].cells
@@ -360,10 +437,11 @@ end
         tm = TempMem(
             num_cols, 
             cells_per_col, 
-            initial_segments_per_cell=init_segs,
-            synapse_sample_size=init_syn,
+            max_new_synapses=init_syn,
             learning_enabled=true
         )
+        grow_random_connections!(tm, init_segs, init_syn)
+
         t = 2
         active_cells = tm.columns[1].cells
         tm.active_cells[t] = active_cells
@@ -390,13 +468,15 @@ end
         num_cols = 100
         cells_per_col = 10
         init_segs = 4
+        init_syn = 50
         tm = TempMem(
             num_cols, 
             cells_per_col, 
-            initial_segments_per_cell=init_segs,
             activation_threshold=cells_per_col,
             learning_threshold=cells_per_col - 2
         )
+        grow_random_connections!(tm, init_segs, init_syn)
+
 
         # Create two segments that should activate
         t = 2
@@ -428,7 +508,10 @@ end
     num_cols = 10
     cells_per_col = 5
     init_segs = 4
-    tm = TempMem(num_cols, cells_per_col, initial_segments_per_cell=init_segs)
+    init_syn = 50
+    tm = TempMem(num_cols, cells_per_col)
+    grow_random_connections!(tm, init_segs, init_syn)
+
 
     @testset "least_used_cell()" begin
         col_idx = 3

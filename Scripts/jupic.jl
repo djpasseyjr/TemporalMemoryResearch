@@ -109,6 +109,8 @@ mutable struct TempMemParams{T}
     activation_threshold::Int
     # Permanence given to all new synapses
     initial_permanence::T
+    # Maximum allowed synapse permanence
+    max_permanence::T
     # The minimum permanence for a synapse to be considered connected
     connected_permanence::T
     # The minimum number of active synapses required for a 
@@ -122,10 +124,12 @@ mutable struct TempMemParams{T}
     permanence_decrement::T
     # Increment by which permanence is decreased for false positives
     predicted_decrement::T
-    # How many random synapses appear on a new segment
-    synapse_sample_size::Int
-    # How many segments are added to each cell during model initialization
-    initial_segments_per_cell::Int
+    # The maximum number of segments per cell
+    max_segments_per_cell::Int
+    # The maximum number of synapses per segment
+    max_synapses_per_seg::Int
+    # The maximum number of synapses that can be added to a segment per iter
+    max_new_synapses::Int
 end
 
 mutable struct TempMem{T}
@@ -177,7 +181,30 @@ end
 #------------------------------------------------------------------------------
 # Temporal Memory Object Constructor
 #------------------------------------------------------------------------------
+"""
+    TempMem(
+        num_cols::Int,
+        cells_per_col::Int;
 
+        # Optional args
+        activation_threshold=15,
+        initial_permanence=0.3,
+        max_permanence=1.0,
+        connected_permanence=0.5,
+        learning_threshold=12,
+        learning_enabled=true,
+        permanence_increment=0.05,
+        permanence_decrement=0.001,
+        predicted_decrement=0.05,
+        max_segments_per_cell=255,
+        max_synapses_per_seg=255,
+        max_new_synapses=50,
+    )
+
+Creates a temporal memory struct. Initially has no segments or synapses.
+(Compare to Nupic [here](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/connections.py#L139)
+)
+"""
 function TempMem(
     num_cols::Int,
     cells_per_col::Int;
@@ -185,21 +212,24 @@ function TempMem(
     # Optional args
     activation_threshold=15,
     initial_permanence=0.3,
+    max_permanence=1.0,
     connected_permanence=0.5,
     learning_threshold=12,
     learning_enabled=true,
     permanence_increment=0.05,
     permanence_decrement=0.001,
     predicted_decrement=0.05,
-    synapse_sample_size=50,
-    initial_segments_per_cell=0
+    max_segments_per_cell=255,
+    max_synapses_per_seg=255,
+    max_new_synapses=50,
 )
     T = PERMANENCE_TYPE
-    # Initialize parameter class
+    # Initialize parameter struct.
     ps = TempMemParams(num_cols, cells_per_col, activation_threshold, 
-        initial_permanence, connected_permanence, learning_threshold,
-        learning_enabled, permanence_increment, permanence_decrement,
-        predicted_decrement, synapse_sample_size, initial_segments_per_cell)
+        initial_permanence, max_permanence, connected_permanence, 
+        learning_threshold, learning_enabled, permanence_increment,
+        permanence_decrement, predicted_decrement, max_segments_per_cell, 
+        max_synapses_per_seg, max_new_synapses)
     
     columns = [Column(cells_per_col) for i in 1:num_cols]
     cells = [cell for col in columns for cell in col.cells]
@@ -226,14 +256,6 @@ function TempMem(
         matching_segments,
         num_active_potential_synapses,
     )
-
-    # Add segments
-    for i in 1:initial_segments_per_cell
-        for cell in cells 
-            grow_new_segment!(tm, cell)
-        end
-    end
-
     return tm
 end
 
@@ -270,22 +292,49 @@ predicted_columns(tm) = predicted_columns(tm, tm.t)
 """
     grow_new_segment!(tm, cell)
 
-Creates a segment and adds it to `cell`.
+Creates a segment and adds it to `cell`. As far as I can tell, when Nupic
+adds a new segment, it starts off with zero synapses.
+Compare to Nupic [here](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L665)
+and [here](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/connections.py#L260).
 """
 function grow_new_segment!(tm, cell)
-
     seg = Segment(cell)
-    # Select random presynaptic cells
-    pre_syn_cell_idxs = randperm(length(tm.cells))[1:tm.ps.synapse_sample_size]
-    # Create and add synapses
-    syns = map(c -> Synapse(tm.ps.initial_permanence, c), 
-               tm.cells[pre_syn_cell_idxs])
-    map(s -> push!(seg.synapses, s), syns)
-
     # Add segment to model
     push!(tm.segments, seg)
     push!(cell.segments, seg)
     return seg
+end
+
+"""
+    random_synapses(tm, num_synapses::Int) 
+
+Creates `num_synapses` synapses with random presynaptic cells.
+Returns a list.
+"""
+function random_synapses(tm, num_synapses::Int)
+     # Select random presynaptic cells
+     pre_syn_cell_idxs = randperm(length(tm.cells))[1:num_synapses]
+     # Create and add synapses
+     syns = map(c -> Synapse(tm.ps.initial_permanence, c), 
+                tm.cells[pre_syn_cell_idxs])
+    return syns
+end
+
+"""
+    grow_random_connections!(tm, segs_per_cell::Int, syns_per_seg::Int)
+
+Adds `segs_per_cell` segments to each cell. Each segment is initialized
+with `syns_per_seg` synapses that are connected to random presynaptic cells.
+"""
+function grow_random_connections!(tm, segs_per_cell::Int, syns_per_seg::Int)
+    for cell in tm.cells
+        for _ in 1:segs_per_cell
+            seg = Segment(cell, Set(random_synapses(tm, syns_per_seg)))
+            # Add segment to model
+            push!(tm.segments, seg)
+            push!(cell.segments, seg)
+        end
+    end
 end
 
 function Base.show(io::IO, tm::TempMem)
@@ -309,6 +358,16 @@ function num_synapses_from(tm, col_idxs)
     end
     return tot
 end
+
+function encode(seq, num_cols, encoding_size)
+    unique_letters = Set([s for s in seq])
+    encodings = Dict{Char, Array{Int, 1}}()
+    for ul in unique_letters
+        encodings[ul] = randperm(num_cols)[1:encoding_size]
+    end
+    return encodings
+end
+
 #------------------------------------------------------------------------------
 # Temporal Memory Algorithm 
 #------------------------------------------------------------------------------
@@ -340,7 +399,7 @@ state. When this happens, `activate_predicted_column!()` is called. This
 function strengthens connections to previous winner cells, weakens 
 connections to non winners, and forms new synapses to previous winner
 cells on all currently active segments. New synapses are not formed if
-the numer of active potential synapses exceeds `tm.ps.synapse_sample_size`
+the numer of active potential synapses exceeds `tm.ps.max_new_synapses`
 
 #### False Negative:
 This occurs when a column is active but none of its cells are in a 
@@ -353,8 +412,8 @@ winner cells.
 
 #### False Positive:
 This event occurs when a column contains predictive cells but it is not 
-an active column. This event is handled with `punish_predicted_column!()`.
-This function loops through all "matching segments" (segments that activated 
+an active column. This event is handled with `punish_predicted_column!()` 
+which loops through all "matching segments" (segments that activated 
 or are close to activating) and reduces the permanence of synapses that
 connect to previously "active" cells. For some reason, the algorithm 
 makes a distiction between winner cells and active cells and it shows up
@@ -411,14 +470,13 @@ function activate_predicted_column!(tm, active_segs, t)
         push!(tm.winner_cells[t], segment.cell)
         
         if tm.ps.learning_enabled
-            for synapse in segment.synapses
-                if synapse.presynaptic_cell in tm.active_cells[t-1]
-                    synapse.permanence += tm.ps.permanence_increment
-                else
-                    synapse.permanence -= tm.ps.permanence_decrement
-                end
-            end
-            new_synapse_count = tm.ps.synapse_sample_size - get!(tm.num_active_potential_synapses[t-1], segment, 0)
+            # Update permanences, delete synapses, potentially delete segment.
+            adapt_segment!(tm, segment, t)
+            # TODO: I think there is a minor issue here. `adapt_segment!` can
+            # potentially delete `segment`. If this happens, the next two
+            # Lines don't really make any sense.
+            prev_active_syns = get!(tm.num_active_potential_synapses[t-1], segment, 0)
+            new_synapse_count = tm.ps.max_new_synapses - prev_active_syns
             grow_synapses!(tm, segment, new_synapse_count, t)
         end
     end
@@ -428,13 +486,32 @@ end
 """
     burst_column!(tm::TempMem, column, active_segs, t)
 
-Activates all cells in `column`. If the column has active segments
-the segment that has the most active potential synapses from the previous
-timestep is selected. Updates weights and reconnects synapses to previously 
-active cells.
+Activates all cells in `column`. Finds the cell that was the closest to
+activation and adds it to `tm.winner_cells[t]`. If no cell had segments
+that were close to activation, then adds the cell with the fewest segments
+to `tm.winner_cells[t]`.
 
-If the column has no active segments, the function creates a new one and 
-populates it with synapses.
+If `tm.learning_enabled == true`, this function also does the following:
+
+**Case 1**: At least one segment in the column is active or close to active.
+1. Finds the segment that is the closest to activation.
+1. Increases synapse permanences for all synapses on that segment if are 
+connected to active cells from the previous timestep. Decreases permanences 
+if they are connected to inactive cells.
+2. Adds synapses that connect the segment to previous winner cells. Adds less 
+synapses if the segment already has synapses that are connected active cells.
+Cannot add more than `tm.ps.max_new_synapses` new synapses. Cannot add
+synapses that connect the segment to cells that are not previous winner cells.
+
+**Case 2**: No segments in the column are active or close to active
+1. Finds the cell with the least segments
+2. Adds a new segment to that cell
+3. Adds synapses that connect previous winner cells to the segment,
+up to a maximum of `tm.ps.max_new_synapses` new synapses. Cannot add
+synapses that connect the segment to cells that are not previous winner cells.
+
+
+[Compare to Nupic](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L529)
 """
 function burst_column!(tm, column, matching_segs, t)
     # Add cells in column to the set of active cells
@@ -444,34 +521,60 @@ function burst_column!(tm, column, matching_segs, t)
     
     if length(matching_segs) > 0
         # If there were active segments in this column, find the best match
-        # to the input
+        # to the input.
         learning_segment = best_matching_segment(tm, matching_segs, t)
         winner_cell = learning_segment.cell
-    else
-        # Otherwise, retrive the least used cell
-        winner_cell = least_used_cell(column)
-        if tm.ps.learning_enabled
-            learning_segment = grow_new_segment!(tm, winner_cell)
-        end
-    end
-    
-    # Store cells to be updated
-    push!(tm.winner_cells[t], winner_cell)
-    
-    # Modulate synapse weights in `learning_segment` segment
-    if tm.ps.learning_enabled
-        for synapse in learning_segment.synapses
-            if synapse.presynaptic_cell in tm.active_cells[t-1]
-                synapse.permanence += tm.ps.permanence_increment
-            else
-                synapse.permanence -= tm.ps.permanence_decrement
-            end
-        end
         
-        new_synapse_count = tm.ps.synapse_sample_size - get!(
-            tm.num_active_potential_synapses[t-1], learning_segment, 0)
-        grow_synapses!(tm, learning_segment, new_synapse_count, t)
+        if tm.ps.learning_enabled
+
+            # Update permanences, delete synapses, potentially delete segment.
+            adapt_segment!(tm, learning_segment, t)
+            # TODO: I think there is a minor issue here. `adapt_segment!` can
+            # potentially delete `segment`. If this happens, the next three
+            # lines of code don't really make any sense.
+            
+            # We ask for `tm.ps.max_new_synapses` new synapses
+            # but we ask for less synapses when the `learning_segment`
+            # already has active potential (subthreshold) synapses on it.
+            n_prev_act_syns = get!(tm.num_active_potential_synapses[t-1], 
+                                   learning_segment, 0)
+            desired_new_synapse = tm.ps.max_new_synapses - n_prev_act_syns
+            # The function `grow_synapses!` adds synapses that connect
+            # `learning_segment` to previous winner cells.
+            grow_synapses!(tm, learning_segment, desired_new_synapse, t)
+        end
+
+    else
+        # Otherwise, retrive the least used cell.
+        winner_cell = least_used_cell(column)
+
+        if tm.ps.learning_enabled
+            # Create a new segment
+            new_segment = grow_new_segment!(tm, winner_cell)
+            # Connect the segment to all previous winner cells.
+            n_winners = length(tm.winner_cells[t - 1])
+            num_new_synapses = min(tm.ps.max_new_synapses, n_winners)
+            # TODO: If a segment is added with zero synapses, it will be 
+            # never activate and thefore never be chosen as the 
+            # `learning_segment` in this function nor appear in the
+            # synapse update loop in `activate_predicted_column!`.
+            # Since these are the only two places that a segment can
+            # gain synapses, a segment that starts off with no synapses
+            # will never grow more. Similarly, a segment that starts off
+            # with a small number of synapses might be unlikely to grow
+            # more (unless the pattern repeats frequently). Ah! If a segment
+            # is added with less than the activation threshold level of
+            # synapses, then it will never grow more, because it can
+            # never activate. This may not matter in practice though.
+            # It does indicate a dependence on the presence of enough
+            # winner_cells 
+            grow_synapses!(tm, new_segment, num_new_synapses, t)
+        end
     end
+    
+    # Store cell to be updated.
+    push!(tm.winner_cells[t], winner_cell)
+
 end
 
 
@@ -576,6 +679,53 @@ function best_matching_segment(tm, segments, t)
     end
     
     return best_matching_segment
+end
+
+"""
+    adapt_segment!(tm, segment, t::Int)
+
+Iterates over all synapses. Increases the permanence if the synapse
+is connected to a cell that was active in the previous timestep and
+decreases the permanence otherwise.
+
+If a synapse permanence drops to zero or lower, the synapse is deleted.
+If `segment` has no synapses after the updates are finished, it is deleted.
+"""
+
+function adapt_segment!(tm, segment, t::Int)
+    synapses_to_delete = Synapse[]
+
+    # Update synapse permanence
+    for synapse in segment.synapses
+        if synapse.presynaptic_cell in tm.active_cells[t-1]
+            p = synapse.permanence + tm.ps.permanence_increment
+            # Prevent permanences from getting too large.
+            synapse.permanence = min(p, tm.ps.max_permanence)
+        else
+            synapse.permanence -= tm.ps.permanence_decrement
+            # elete synapse when the permanence gets too small.
+            if (synapse.permanence <= 0) 
+                push!(synapses_to_delete, synapse)
+            end
+        end
+    end
+
+    # Delete synapses.
+    map(x -> pop!(segment.synapses, x), synapses_to_delete)
+    # Delete segment.
+    if length(segment.synapses) == 0
+        delete_segment!(tm, segment)
+    end
+end
+
+"""
+    delete_segment!(tm, segment)
+
+Removes segment from the temporal memory struct.
+"""
+function delete_segment!(tm, segment)
+    pop!(segment.cell.segments, segment)
+    deleteat!(tm.segments, findall(x -> x == segment, tm.segments))
 end
 
 """
