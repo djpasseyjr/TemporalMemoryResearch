@@ -427,7 +427,7 @@ end
         syn_cells = union(active_cells, tm.columns[2].cells)
         syns = [Synapse(init_perm, c) for c in syn_cells]
         cell = rand(tm.columns[end].cells)
-        active_seg = Segment(cell, Set(syns))
+        active_seg = Segment(cell, Set(syns), t)
 
         punish_predicted_column!(tm, [active_seg], t+1)
         for syn in active_seg.synapses
@@ -449,7 +449,7 @@ end
         syn_cells = union(active_cells, tm.columns[2].cells)
         syns = [Synapse(init_perm, c) for c in syn_cells]
         cell = rand(tm.columns[end].cells)
-        active_seg = Segment(cell, Set(syns))
+        active_seg = Segment(cell, Set(syns), t)
 
         punish_predicted_column!(tm, [active_seg], t+1)
         for syn in active_seg.synapses
@@ -484,8 +484,8 @@ end
         tm.active_cells[t] = active_cells
         syns = [Synapse(1.0, c) for c in active_cells]
         cell = rand(tm.columns[2].cells)
-        active_seg = Segment(cell, Set(syns))
-        matching_seg = Segment(cell, Set(syns[1:end-2]))
+        active_seg = Segment(cell, Set(syns), 0)
+        matching_seg = Segment(cell, Set(syns[1:end-2]), 0)
 
         # Add to TempMem
         append!(tm.segments, [active_seg, matching_seg])
@@ -498,6 +498,8 @@ end
         @test matching_seg in tm.matching_segments[t]
         @test tm.num_active_potential_synapses[t][active_seg] == length(syns)
         @test tm.num_active_potential_synapses[t][matching_seg] == length(syns) - 2
+        @test active_seg.last_used_iter == t
+        @test matching_seg.last_used_iter == 0
 
     end
 end
@@ -538,13 +540,28 @@ end
         @test best_seg == segs[3]
     end
 
-    @testset "grow_new_segment!" begin
+    @testset "grow_segment!()" begin
         cell = Cell()
         init_num_segs = length(tm.segments)
-        grow_new_segment!(tm, cell)
+        grow_segment!(tm, cell)
         @test length(tm.segments) == init_num_segs + 1
         @test length(cell.segments) == 1
     end
+
+    @testset "delete_segment!()" begin
+        # Initialize TempMem
+        num_cols = 10
+        cells_per_col = 5
+        init_segs = 4
+        init_syn = 50
+        tm = TempMem(num_cols, cells_per_col)
+        grow_random_connections!(tm, init_segs, init_syn)
+        # Measure size in bytes
+        tm_bytes = Base.summarysize(tm)
+        # Delete segment
+        delete_segment!(tm, tm.segments[end])
+        @test Base.summarysize(tm) < tm_bytes
+    end 
 
     @testset "grow_synapses!()" begin
         seg = Segment()
@@ -558,20 +575,9 @@ end
         grow_synapses!(tm, seg, num_new_synapses, t)
         @test length(seg.synapses) == 5
 
-        @test grow_synapses!(tm, seg, num_new_synapses, t) == 0
+        grow_synapses!(tm, seg, num_new_synapses, t)
         @test length(seg.synapses) == 5
     
-    end
-
-    @testset "create_new_synapse!()" begin
-        seg = tm.segments[1]
-        num_syns = length(seg.synapses)
-        pre_syn_cell = [c for c in tm.columns[end].cells][1]
-        create_new_synapse!(seg, 0.5, pre_syn_cell, safe=false)
-        @test length(seg.synapses) == num_syns + 1
-        @test_throws ArgumentError create_new_synapse!(seg, 0.5, pre_syn_cell)
-        create_new_synapse!(seg, 0.5, pre_syn_cell, safe=false)
-        @test length(seg.synapses) == num_syns + 2
     end
 
     @testset "random_initial!()" begin
