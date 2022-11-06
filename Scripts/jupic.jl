@@ -469,6 +469,7 @@ function activate_predicted_column!(tm, active_segs, t)
             desired_new_synapse = tm.ps.max_new_synapses - n_prev_act_syns
             # The function `grow_synapses!` adds synapses that connect
             # `learning_segment` to previous winner cells. It also
+            # deletes synapses if there are too many on the segment
             grow_synapses!(tm, segment, desired_new_synapse, t)
         end
     end
@@ -544,12 +545,6 @@ function burst_column!(tm, column, matching_segs, t)
 
             # Update permanences, delete synapses, potentially delete segment.
             adapt_segment!(tm, learning_segment, t)
-            # NOTE: I think there is a minor issue here. `adapt_segment!` can
-            # potentially delete `segment`. If this happens, the next three
-            # lines of code don't really make any sense.
-            # Nupic does the same thing, see _adaptSegment: https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L801
-            # and _burstColumn: https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L529
-
             # We ask for `tm.ps.max_new_synapses` new synapses
             # but we ask for less synapses when the `learning_segment`
             # already has active potential (subthreshold) synapses on it.
@@ -557,7 +552,8 @@ function burst_column!(tm, column, matching_segs, t)
                                    learning_segment, 0)
             desired_new_synapse = tm.ps.max_new_synapses - n_prev_act_syns
             # The function `grow_synapses!` adds synapses that connect
-            # `learning_segment` to previous winner cells. It also
+            # `learning_segment` to previous winner cells. It also 
+            # deletes synapses if there are too many on the segment
             grow_synapses!(tm, learning_segment, desired_new_synapse, t)
         end
 
@@ -711,7 +707,7 @@ function adapt_segment!(tm, segment, t::Int)
             synapse.permanence = min(p, tm.ps.max_permanence)
         else
             synapse.permanence -= tm.ps.permanence_decrement
-            # elete synapse when the permanence gets too small.
+            # Delete synapse when the permanence gets too small.
             if (synapse.permanence <= 0) 
                 push!(synapses_to_delete, synapse)
             end
@@ -757,7 +753,6 @@ end
 Removes segment from the temporal memory struct.
 """
 function delete_segment!(tm, segment)
-    # TODO: Test
     pop!(segment.cell.segments, segment)
     deleteat!(tm.segments, findall(x -> x == segment, tm.segments))
 end
@@ -776,13 +771,15 @@ function grow_synapses!(tm, segment, num_new_synapses, t)
     
     existing_presyn_cells = Set([s.presynaptic_cell for s in segment.synapses])
     # Don't allow multiple synapses to the same winner cell
-    candidates = Set([cell for cell in tm.winner_cells[t-1] if cell ∉ existing_presyn_cells])
+    candidates = Set(
+        [cell for cell in tm.winner_cells[t-1] if cell ∉ existing_presyn_cells]
+    )
     actual_new_syn = min(num_new_synapses, length(candidates))
 
     # Check if the segment has too many synapses. If so, remove some.
     overrun = length(segment.synapses) + actual_new_syn - tm.ps.max_synapses_per_seg
     if overrun > 0
-        remove_min_perm_synapses!(tm, segment, overrun)
+        remove_min_perm_synapses!(tm, segment, overrun, tm.winner_cells[tm.t])
     end
 
     # Recalculate in case we weren't able to destroy as many synapses as needed.
@@ -796,6 +793,25 @@ function grow_synapses!(tm, segment, num_new_synapses, t)
     end
 end
 
+"""
+    remove_min_perm_synapses!(tm, segment, n_remove::Int, exclude_cells)
+
+Destroy `n_remove` synapses with the smallest permanence on the specified 
+segment, but don't destroy synapses to the `exclude_cells`.
+
+Compare to Nupic [`_destroyMinPermanenceSynapses`](https://github.com/numenta/nupic/blob/b9ebedaf54f49a33de22d8d44dff7c765cdb5548/src/nupic/algorithms/temporal_memory.py#L696)
+"""
+function remove_min_perm_synapses!(tm, segment, n_remove::Int, exclude_cells)
+    # Collect synapses that can be removed and sort by permanence
+    remove_candidates = sort(
+        [s for s in segment.synapses if s.presynaptic_cell ∉ exclude_cells],
+        by=x -> x.permanence
+    )
+    actual_n_remove = min(n_remove, length(remove_candidates))
+    for i in 1:actual_n_remove
+        pop!(segment.synapses, remove_candidates[i])
+    end
+end
 
 """
     random_initial!(tm::TempMem, num_active::Int)

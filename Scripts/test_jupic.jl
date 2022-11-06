@@ -575,9 +575,36 @@ end
         grow_synapses!(tm, seg, num_new_synapses, t)
         @test length(seg.synapses) == 5
 
+        # Test that no duplicate synapses are created.
         grow_synapses!(tm, seg, num_new_synapses, t)
         @test length(seg.synapses) == 5
-    
+
+        # New set of winner cells
+        tm.winner_cells[0] = Set([c for c in tm.columns[2].cells])
+        tm.ps.max_synapses_per_seg = 6
+        grow_synapses!(tm, seg, num_new_synapses, t)
+        @test length(seg.synapses) == 6
+    end
+
+    @testset "remove_min_perm_synapses!()" begin
+        col1_cells = [c for c in tm.columns[1].cells]
+        col2_cells = [c for c in tm.columns[2].cells]
+        winner_cells = Set(col1_cells)
+        pre_syn_cells = append!(col1_cells, col2_cells)
+        n_syns = 2 * cells_per_col
+        # Create permanences so that col 1 cells are lower than col 2
+        permanence = [i/n_syns for i in 1:n_syns]
+        # Make synapses to cells in column 1 and column 2
+        syns = [Synapse(p, c) for (p, c) in zip(permanence, pre_syn_cells)]
+        segment = Segment(tm.cells[end], Set(syns), tm.t)
+        # Rmove less than `cells_per_col` so not all synapses to col 2
+        # are removed.
+        n_remove = cells_per_col - 2
+        remove_min_perm_synapses!(tm, segment, n_remove, winner_cells)
+        @test length(segment.synapses) == n_syns - n_remove
+        true_permanence = append!(permanence[1:5], permanence[end-1:end])
+        existing_permanence = [s.permanence for s in segment.synapses]
+        @test symdiff(true_permanence, existing_permanence) == []
     end
 
     @testset "random_initial!()" begin
